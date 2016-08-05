@@ -20,9 +20,10 @@ AudioConnection          patchCord6(mixer1, 0, i2s1, 0);
 AudioControlSGTL5000     sgtl5000_1;
 
 // PINS
-int volumePin = A3;    // VOLUME
-int freqPin = A2;    // VOLUME
-int sensorPin = A4;    // select the input pin for the potentiometer
+const int volumePin = A3;    // VOLUME
+const int freqPin = A2;    // VOLUME
+const int sensorPin = A4;    // select the input pin for the potentiometer
+const int audioRelay = 4;
 
 Bounce button0 = Bounce(0, 15);
 Bounce button1 = Bounce(1, 15);  // 15 ms debounce time
@@ -30,10 +31,10 @@ Bounce button2 = Bounce(2, 15);
 Bounce button3 = Bounce(3, 15); // STOP / PLAY
 
 // SENSOR VALUES
-//char trackName[11] = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'J', 'K'};
-/int trackVal[10]   = {585,  711, 782, 828, 861, 886, 905, 922, 937, 953};
-char trackName[6] = {'A', 'C', 'E', 'G', 'J'};
-int trackVal[5]   = {585, 782, 861, 905, 937};
+char trackName[11] = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'J', 'K'};
+int trackVal[10]   = {588,  712, 778, 828, 861, 882, 905, 921, 932, 953};
+//char trackName[11] = {'A', 'C', 'E', 'G', 'J'};
+//int trackVal[10]   = {581,  783, 861, 905, 936};
 const long interval = 3000;
 int range = 5;
 
@@ -57,6 +58,7 @@ void setup() {
   pinMode(1, INPUT_PULLUP);
   pinMode(2, INPUT_PULLUP);
   pinMode(3, INPUT_PULLUP);
+  pinMode(audioRelay, OUTPUT);
   Serial.begin(9600);
   AudioMemory(8);
   sgtl5000_1.enable();
@@ -109,6 +111,8 @@ void loop() {
     button3.update();
     if (button3.fallingEdge()) {
       playSdWav1.stop(); 
+      digitalWrite(audioRelay, LOW);
+      Serial.println("AUDIO RELAY OFF!");
       playVar = 0;   // DETECT WHEN THE TRACK IS OVER TO REJECT THE RECORD ???????
   }}
   
@@ -124,6 +128,8 @@ void loop() {
   sensorValue /= AVERAGE;
   
   if(!playSdWav1.isPlaying()){
+    digitalWrite(audioRelay, LOW);
+    Serial.println("AUDIO RELAY OFF!");
     for(int i=0; i<11; i++){
       if (sensorValue >= trackVal[i]-range && sensorValue <= trackVal[i]+range) { 
           currentMillis = millis();
@@ -134,9 +140,11 @@ void loop() {
               break;}
             if(sensorValue >= trackVal[i]-range && sensorValue <= trackVal[i]+range){
                 if(x >= interval){
+                    digitalWrite(audioRelay, HIGH);
+                    Serial.println("AUDIO RELAY ON!");
                     previousMillis = millis();
-                    //int j = (i == 1 || i == 3 || i == 5 || i == 7 || i == 9) ? (i-1)/2 : i/2; //for A-B,C-D,E-F,G-H,J-K to be the same tracks
-                    int j=i;
+                    int j = (i == 1 || i == 3 || i == 5 || i == 7 || i == 9) ? (i-1)/2 : i/2; //for A-B,C-D,E-F,G-H,J-K to be the same tracks
+                    //int j=i;
                     Serial.print("Play track: ");
                     Serial.print(trackName[j]);
                     Serial.print("; File: ");
