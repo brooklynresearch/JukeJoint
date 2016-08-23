@@ -42,22 +42,22 @@ AudioConnection          patchCord7(playSdWav1, peak1);
 AudioControlSGTL5000     sgtl5000_1;
 
 //INPUT PINS
-const int rejectButtonPin = 3;
+const int rejectButtonPin = 5;
 Bounce rejectButton = Bounce(rejectButtonPin, 15); // 15 = 15 ms debounce time
 const int volumePin = A3;    // VOLUME
 const int freqPin = A2;    // VOLUME
 
 //OUTPUT PINS
-const int audioRelay = 4;
+const int audioRelay = 3;
 
-const int rejectRelay = 5;
+const int rejectRelay = 4;
 bool isRejectRelayOn = false;
 long rejectTiming = 0;
 int rejectThreshold = 300;
 
 // SENSOR VALUES
-char trackName[11] = {'A', 'C', 'E', 'H', 'J'};
-int trackVal[10]   = {110,  268, 428, 689, 755};
+char trackName[6] = {'A', 'C', 'E', 'G', 'J'};
+int trackVal[5]   = {110,  268, 428, 594, 755};
 //const long interval = 3000;
 const long audioPlayThreshold = 5000;
 uint32_t trackLengthMillis = 0;
@@ -68,13 +68,14 @@ int range = 3;
 //SERIAL COM
 byte low, high;
 int sensorValue;
+int firstSensorValue;
 int pValue = 0;
 
 // AUDIO FILES
 int fileNumber = 0;  //file to play
 #define TRACKTOTAL 5
 const char * filelist[5] = {
-  "Bigwild.WAV", "PerryC.WAV", "ABBA.WAV", "Airsup.WAV", "OL16.WAV"
+  "Bigwild.WAV", "ABBA.WAV", "ABBA.WAV", "Airsup.WAV", "OL16.WAV"
 };
 bool firstTimeThrough[TRACKTOTAL] = {true, true, true, true, true};
 bool isValidReading[TRACKTOTAL] = {false, false, false, false, false};
@@ -84,6 +85,7 @@ unsigned long previousMillis = 0;
 unsigned long currentMillis = 0;
 boolean loopBreak = false;
 boolean rejectEndofSong = false;
+boolean isRejected = false;
 bool playVar = false;
 
 void setup() {
@@ -108,14 +110,36 @@ void setup() {
   pinMode(audioRelay, OUTPUT);
 
   pinMode(LEDPIN, OUTPUT);
+
+  mixer1.gain(0, 0.0);
+  mixer1.gain(1, 0.0);
+  mixer1.gain(2, 1.0);
+
   
   delay(1000);
+  
+  firstSensorValue = readValue();
+  if(firstSensorValue > 0){
+    #ifdef DEBUG
+    Serial.print("!!! FIRST SENSOR VALUE: ");
+    Serial.println(firstSensorValue);
+    #endif
+    for(int i=0; i<TRACKTOTAL; i++){
+      if(firstSensorValue >= (trackVal[i] - range) && firstSensorValue <= (trackVal[i] + range)){
+        #ifdef 
+        Serial.println("firstSensorValue is in the range");
+        #endif
+        firstTimeThrough[i] = false;
+        isValidReading[i] = false;
+        }}
+  }
 }
 
 
 void loop() {
   
   if (!playSdWav1.isPlaying() && playVar) {
+    
     Serial.print("We're Playing Track: ");
     Serial.println(filelist[fileNumber]);
     const char *fileName = filelist[fileNumber];
@@ -127,8 +151,10 @@ void loop() {
     muteAudio();
     //firstTimeThrough[fileNumber] = true;
     isValidReading[fileNumber] = false;
-    playVar = false;   // DETECT WHEN THE TRACK IS OVER TO REJECT THE RECORD ???????
+    playVar = false; 
+    
   } else if(playSdWav1.isPlaying()){
+    
     //Serial.print("POS: ");Serial.println(playSdWav1.positionMillis());
     digitalWrite(audioRelay, HIGH);
     if(peak1.available()){
@@ -140,13 +166,16 @@ void loop() {
     }
     audioFilePlayed = true;
     unMuteAudio();
+    
   } else {
+    
     analogWrite(LEDPIN, 0);
-    if(audioFilePlayed && (millis() - currentTrackMillis > trackLengthMillis)){
+    if((audioFilePlayed && (millis() - currentTrackMillis > trackLengthMillis)) || isRejected){
       Serial.println("Custom Audio File Ended");
       isRejectRelayOn = true;
       rejectTiming = millis();
       audioFilePlayed = false;
+      isRejected = false;
     }
     digitalWrite(audioRelay, LOW);
   }
@@ -234,11 +263,12 @@ void pollRejectButton(){
     #endif
     playSdWav1.stop();
     muteAudio();
-    digitalWrite(audioRelay, LOW);
+    digitalWrite(rejectRelay, LOW);
     isRejectRelayOn = true;
     rejectTiming = millis();
     playVar = 0;
     unMuteAudio();
+    isRejected = true;
   }
 }
 
